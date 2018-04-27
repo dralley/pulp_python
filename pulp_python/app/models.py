@@ -45,10 +45,10 @@ class PythonPackageContent(Content):
 
     TYPE = 'python'
     # Required metadata
-    filename = models.TextField(unique=True, db_index=True, blank=False)
-    packagetype = models.TextField(blank=False, choices=PACKAGE_TYPES)
-    name = models.TextField(blank=False)
-    version = models.TextField(blank=False)
+    filename = models.TextField(unique=True, db_index=True)
+    packagetype = models.TextField(choices=PACKAGE_TYPES)
+    name = models.TextField()
+    version = models.TextField()
     # Optional metadata
     metadata_version = models.TextField(blank=True)
     summary = models.TextField(blank=True)
@@ -65,10 +65,10 @@ class PythonPackageContent(Content):
     project_url = models.TextField(blank=True)
     platform = models.TextField(blank=True)
     supported_platform = models.TextField(blank=True)
-    requires_dist = models.TextField(default="[]", blank=False)
-    provides_dist = models.TextField(default="[]", blank=False)
-    obsoletes_dist = models.TextField(default="[]", blank=False)
-    requires_external = models.TextField(default="[]", blank=False)
+    requires_dist = models.TextField(default="[]")
+    provides_dist = models.TextField(default="[]")
+    obsoletes_dist = models.TextField(default="[]")
+    requires_external = models.TextField(default="[]")
 
     class Meta:
         unique_together = (
@@ -101,4 +101,4 @@ class PythonRemote(Remote):
     """
 
     TYPE = 'python'
-    projects = models.TextField()
+    projects = models.TextField(default="[]")
