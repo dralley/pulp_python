@@ -253,17 +253,20 @@ class PythonRemoteSerializer(core_serializers.RemoteSerializer):
     includes = ProjectSpecifierSerializer(
         required=False,
         many=True,
-        source='includes_specifiers'
     )
-
     excludes = ProjectSpecifierSerializer(
         required=False,
         many=True,
-        source='excludes_specifiers',
+    )
+    prereleases = serializers.BooleanField(
+        required=False,
+        help_text=_('Whether or not to include pre-release packages in the sync.')
     )
 
     class Meta:
-        fields = core_serializers.RemoteSerializer.Meta.fields + ('includes', 'excludes')
+        fields = core_serializers.RemoteSerializer.Meta.fields + (
+            'includes', 'excludes', 'prereleases'
+        )
         model = python_models.PythonRemote
 
     @transaction.atomic
@@ -271,7 +274,7 @@ class PythonRemoteSerializer(core_serializers.RemoteSerializer):
         """
         Update a PythonRemote.
 
-        Overriding default update() to write the projects nested field
+        Overriding default update() to write the projects nested field.
 
         Args:
             instance (models.PythonRemote): instance of the python remote to update
@@ -295,7 +298,7 @@ class PythonRemoteSerializer(core_serializers.RemoteSerializer):
             digests = project.pop('digests', [])
             specifier = python_models.ProjectSpecifier.objects.create(
                 remote=python_remote,
-                include=True,
+                exclude=False,
                 **project
             )
             for digest in digests:
@@ -307,7 +310,7 @@ class PythonRemoteSerializer(core_serializers.RemoteSerializer):
             digests = project.pop('digests', [])
             specifier = python_models.ProjectSpecifier.objects.create(
                 remote=python_remote,
-                include=False,
+                exclude=True,
                 **project
             )
             for digest in digests:
@@ -340,7 +343,7 @@ class PythonRemoteSerializer(core_serializers.RemoteSerializer):
             digests = project.pop('digests', None)
             specifier = python_models.ProjectSpecifier.objects.create(
                 remote=python_remote,
-                include=True,
+                exclude=False,
                 **project
             )
             if digests:
@@ -353,7 +356,7 @@ class PythonRemoteSerializer(core_serializers.RemoteSerializer):
             digests = project.pop('digests', None)
             specifier = python_models.ProjectSpecifier.objects.create(
                 remote=python_remote,
-                include=False,
+                exclude=True,
                 **project
             )
             if digests:
