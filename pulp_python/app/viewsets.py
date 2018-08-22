@@ -102,7 +102,6 @@ class PythonPackageContentViewSet(platform.ContentViewSet):
             )
 
         data = parse_project_metadata(vars(metadata))
-        data['classifiers'] = [{'name': classifier} for classifier in metadata.classifiers]
         data['packagetype'] = metadata.packagetype
         data['version'] = metadata.version
         data['filename'] = filename

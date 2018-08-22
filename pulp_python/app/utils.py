@@ -29,6 +29,7 @@ def parse_project_metadata(project):
     package['project_url'] = project.get('project_url') or ""
     package['platform'] = project.get('platform') or ""
     package['supported_platform'] = project.get('supported_platform') or ""
+    package['classifiers'] = json.dumps(project.get('classifiers', []))
     package['requires_dist'] = json.dumps(project.get('requires_dist', []))
     package['provides_dist'] = json.dumps(project.get('provides_dist', []))
     package['obsoletes_dist'] = json.dumps(project.get('obsoletes_dist', []))

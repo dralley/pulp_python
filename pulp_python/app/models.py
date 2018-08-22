@@ -19,29 +19,6 @@ PACKAGE_TYPES = (
 )
 
 
-class Classifier(Model):
-    """
-    Custom tags for classifier.
-
-    Fields:
-
-        name (models.TextField): The name of the classifier
-
-    Relations:
-
-        python_package_content (models.ForeignKey): The PythonPackageContent this classifier
-        is associated with.
-    """
-
-    name = models.TextField()
-    python_package_content = models.ForeignKey(
-        "PythonPackageContent",
-        related_name="classifiers",
-        related_query_name="classifier",
-        on_delete=models.CASCADE
-    )
-
-
 class DistributionDigest(Model):
     """
     A model of digests on an individual distribution.
@@ -111,6 +88,7 @@ class PythonPackageContent(Content):
     packagetype = models.TextField(blank=False, choices=PACKAGE_TYPES)
     name = models.TextField(blank=False)
     version = models.TextField(blank=False)
+
     # Optional metadata
     metadata_version = models.TextField(blank=True)
     summary = models.TextField(blank=True)
@@ -127,6 +105,7 @@ class PythonPackageContent(Content):
     project_url = models.TextField(blank=True)
     platform = models.TextField(blank=True)
     supported_platform = models.TextField(blank=True)
+    classifiers = models.TextField(default="[]", blank=False)
     requires_dist = models.TextField(default="[]", blank=False)
     provides_dist = models.TextField(default="[]", blank=False)
     obsoletes_dist = models.TextField(default="[]", blank=False)

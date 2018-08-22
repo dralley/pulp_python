@@ -10,20 +10,6 @@ from pulpcore.plugin import serializers as core_serializers
 from pulp_python.app import models as python_models
 
 
-class ClassifierSerializer(serializers.ModelSerializer):
-    """
-    A serializer for Python Classifiers.
-    """
-
-    name = serializers.CharField(
-        help_text=_("A string giving a single classification value for a Python package.")
-    )
-
-    class Meta:
-        model = python_models.Classifier
-        fields = ('name',)
-
-
 class DistributionDigestSerializer(serializers.ModelSerializer):
     """
     A serializer for the Distribution Digest in a Project Specifier.
@@ -84,6 +70,11 @@ class PythonPackageContentSerializer(core_serializers.ContentSerializer):
     A Serializer for PythonPackageContent.
     """
 
+    artifact = serializers.HyperlinkedRelatedField(
+        view_name='artifacts-detail',
+        help_text="Artifact file representing the physical content",
+        queryset=core_models.Artifact.objects.all()
+    )
     filename = serializers.CharField(
         help_text=_('The name of the distribution package, usually of the format:'
                     ' {distribution}-{version}(-{build tag})?-{python tag}-{abi tag}'
@@ -184,22 +175,16 @@ class PythonPackageContentSerializer(core_serializers.ContentSerializer):
         help_text=_('A JSON list containing some dependency in the system that the distribution '
                     'is to be used.')
     )
-    classifiers = ClassifierSerializer(
-        required=False,
-        many=True
-    )
-
-    artifact = serializers.HyperlinkedRelatedField(
-        view_name='artifacts-detail',
-        help_text="Artifact file representing the physical content",
-        queryset=core_models.Artifact.objects.all()
+    classifiers = serializers.CharField(
+        required=False, default="[]",
+        help_text=_("A string giving a single classification value for a Python package.")
     )
 
     def create(self, validated_data):
         """
         Create a PythonPackageContent.
 
-        Overriding default create() to write the classifiers nested field
+        Overriding default create() to write artifact.
 
         Args:
             validated_data (dict): Data used to create the PythonPackageContent
@@ -208,16 +193,15 @@ class PythonPackageContentSerializer(core_serializers.ContentSerializer):
             models.PythonPackageContent: The created PythonPackageContent
 
         """
-        classifiers = validated_data.pop('classifiers')
         artifact = validated_data.pop('artifact')
 
         PythonPackageContent = python_models.PythonPackageContent.objects.create(**validated_data)
-        for classifier in classifiers:
-            python_models.Classifier.objects.create(python_package_content=PythonPackageContent,
-                                                    **classifier)
-        ca = core_models.ContentArtifact(artifact=artifact,
-                                         content=PythonPackageContent,
-                                         relative_path=validated_data['filename'])
+
+        ca = core_models.ContentArtifact(
+            artifact=artifact,
+            content=PythonPackageContent,
+            relative_path=validated_data['filename']
+        )
         ca.save()
 
         return PythonPackageContent
