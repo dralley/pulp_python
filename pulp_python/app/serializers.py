@@ -59,10 +59,6 @@ class ProjectSpecifierSerializer(serializers.ModelSerializer):
         required=False,
         allow_blank=True
     )
-    digests = DistributionDigestSerializer(
-        required=False,
-        many=True
-    )
 
     def validate_version_specifier(self, value):
         """
@@ -76,7 +72,7 @@ class ProjectSpecifierSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = python_models.ProjectSpecifier
-        fields = ('name', 'version_specifier', 'digests')
+        fields = ('name', 'version_specifier')
 
 
 class PythonPackageContentSerializer(core_serializers.ContentSerializer):
@@ -93,57 +89,75 @@ class PythonPackageContentSerializer(core_serializers.ContentSerializer):
         help_text=_('The type of the distribution package '
                     '(e.g. sdist, bdist_wheel, bdist_egg, etc)')
     )
+    artifact = serializers.HyperlinkedRelatedField(
+        view_name='artifacts-detail',
+        help_text="Artifact file representing the physical content",
+        queryset=core_models.Artifact.objects.all()
+    )
     name = serializers.CharField(
-        help_text=_('The name of the python project.')
+        help_text=_('The name of the python project.'),
+        source="release.name"
     )
     version = serializers.CharField(
-        help_text=_('The packages version number.')
+        help_text=_('The packages version number.'),
+        source="release.version"
     )
     metadata_version = serializers.CharField(
-        help_text=_('Version of the file format')
+        help_text=_('Version of the file format'),
+        source="release.metadata_version"
     )
     summary = serializers.CharField(
         required=False, allow_blank=True,
-        help_text=_('A one-line summary of what the package does.')
+        help_text=_('A one-line summary of what the package does.'),
+        source="release.summery"
     )
     description = serializers.CharField(
         required=False, allow_blank=True,
-        help_text=_('A longer description of the package that can run to several paragraphs.')
+        help_text=_('A longer description of the package that can run to several paragraphs.'),
+        source="release.description"
     )
     keywords = serializers.CharField(
         required=False, allow_blank=True,
         help_text=_('Additional keywords to be used to assist searching for the '
-                    'package in a larger catalog.')
+                    'package in a larger catalog.'),
+        source=""
     )
     home_page = serializers.CharField(
         required=False, allow_blank=True,
-        help_text=_('The URL for the package\'s home page.')
+        help_text=_('The URL for the package\'s home page.'),
+        source="release.home_page"
     )
     download_url = serializers.CharField(
         required=False, allow_blank=True,
-        help_text=_('Legacy field denoting the URL from which this package can be downloaded.')
+        help_text=_('Legacy field denoting the URL from which this package can be downloaded.'),
+        source="release.download_url"
     )
     author = serializers.CharField(
         required=False, allow_blank=True,
         help_text=_('Text containing the author\'s name. Contact information can also be added,'
-                    ' separated with newlines.')
+                    ' separated with newlines.'),
+        source="release.author"
     )
     author_email = serializers.CharField(
         required=False, allow_blank=True,
-        help_text=_('The author\'s e-mail address. ')
+        help_text=_('The author\'s e-mail address. '),
+        source="release.author_email"
     )
     maintainer = serializers.CharField(
         required=False, allow_blank=True,
         help_text=_('The maintainer\'s name at a minimum; '
-                    'additional contact information may be provided.')
+                    'additional contact information may be provided.'),
+        source="release.maintainer_email"
     )
     maintainer_email = serializers.CharField(
         required=False, allow_blank=True,
-        help_text=_('The maintainer\'s e-mail address.')
+        help_text=_('The maintainer\'s e-mail address.'),
+        source="release."
     )
     license = serializers.CharField(
         required=False, allow_blank=True,
-        help_text=_('Text indicating the license covering the distribution')
+        help_text=_('Text indicating the license covering the distribution'),
+        source="release."
     )
     requires_python = serializers.CharField(
         required=False, allow_blank=True,
@@ -208,27 +222,29 @@ class PythonPackageContentSerializer(core_serializers.ContentSerializer):
             models.PythonPackageContent: The created PythonPackageContent
 
         """
-        classifiers = validated_data.pop('classifiers')
         artifact = validated_data.pop('artifact')
+        filename = validated_data.pop('filename')
+        packagetype = validated_data.pop('packagetype')
 
-        PythonPackageContent = python_models.PythonPackageContent.objects.create(**validated_data)
-        for classifier in classifiers:
-            python_models.Classifier.objects.create(python_package_content=PythonPackageContent,
-                                                    **classifier)
-        ca = core_models.ContentArtifact(artifact=artifact,
-                                         content=PythonPackageContent,
-                                         relative_path=validated_data['filename'])
-        ca.save()
+        release = python_models.PythonProjectRelease.get_or_create(**validated_data)
 
-        return PythonPackageContent
+        python_package_content = python_models.PythonPackageContent.objects.create(
+            artifact=artifact, filename=filename, packagetype=packagetype,
+            release=release
+        )
+        core_models.ContentArtifact.objects.create(
+            artifact=artifact, content=python_package_content, relative_path=filename)
+
+        return python_package_content
 
     class Meta:
         fields = tuple(set(core_serializers.ContentSerializer.Meta.fields) - {'artifacts'}) + (
-            'filename', 'packagetype', 'name', 'version', 'metadata_version', 'summary',
-            'description', 'keywords', 'home_page', 'download_url', 'author', 'author_email',
-            'maintainer', 'maintainer_email', 'license', 'requires_python', 'project_url',
-            'platform', 'supported_platform', 'requires_dist', 'provides_dist',
-            'obsoletes_dist', 'requires_external', 'classifiers', 'artifact'
+            'filename', 'packagetype', 'artifact',
+            'name', 'version', 'metadata_version', 'summary', 'description', 'keywords',
+            'home_page', 'download_url', 'author', 'author_email', 'maintainer',
+            'maintainer_email', 'license', 'requires_python', 'project_url', 'platform',
+            'supported_platform', 'requires_dist', 'provides_dist', 'obsoletes_dist',
+            'requires_external', 'classifiers', 'digests'
         )
         model = python_models.PythonPackageContent
 

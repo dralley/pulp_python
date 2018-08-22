@@ -49,11 +49,12 @@ class DistributionDigest(Model):
 
     type = models.TextField()
     digest = models.TextField()
-    project_specifier = models.ForeignKey(
-        "ProjectSpecifier",
+    release = models.ForeignKey(
+        "PythonProjectRelease",
         related_name="digests",
         related_query_name="distributiondigest",
-        on_delete=models.CASCADE
+        on_delete=models.CASCADE,
+        null=False,
     )
 
 
@@ -83,7 +84,7 @@ class ProjectSpecifier(Model):
         include (models.BooleanField): Used to blacklist/whitelist projects to sync
     """
 
-    name = models.TextField()
+    name = models.TextField(blank=False)
     version_specifier = models.TextField(blank=True, default="")
     exclude = models.BooleanField(blank=True, default=False)
 
@@ -95,20 +96,7 @@ class ProjectSpecifier(Model):
     )
 
 
-class PythonPackageContent(Content):
-    """
-    A Content Type representing Python's Distribution Package.
-
-    As defined in pep-0426 and pep-0345.
-
-    https://www.python.org/dev/peps/pep-0491/
-    https://www.python.org/dev/peps/pep-0345/
-    """
-
-    TYPE = 'python'
-    # Required metadata
-    filename = models.TextField(unique=True, db_index=True, blank=False)
-    packagetype = models.TextField(blank=False, choices=PACKAGE_TYPES)
+class PythonProjectRelease(Model):
     name = models.TextField(blank=False)
     version = models.TextField(blank=False)
     # Optional metadata
@@ -132,6 +120,32 @@ class PythonPackageContent(Content):
     obsoletes_dist = models.TextField(default="[]", blank=False)
     requires_external = models.TextField(default="[]", blank=False)
 
+    class Meta:
+        unique_together = ('name', 'version')
+
+
+class PythonPackageContent(Content):
+    """
+    A Content Type representing Python's Distribution Package.
+
+    As defined in pep-0426 and pep-0345.
+
+    https://www.python.org/dev/peps/pep-0491/
+    https://www.python.org/dev/peps/pep-0345/
+    """
+
+    TYPE = 'python'
+    # Required metadata
+    filename = models.TextField(unique=True, db_index=True, blank=False)
+    packagetype = models.TextField(blank=False, choices=PACKAGE_TYPES)
+
+    release = models.ForeignKey(
+        "PythonProjectRelease",
+        related_name="packages",
+        related_query_name="pythonpackagecontent",
+        on_delete=models.CASCADE,
+    )
+
     @property
     def artifact(self):
         """
@@ -151,8 +165,8 @@ class PythonPackageContent(Content):
         """
         return '<{obj_name}: {name} [{version}] ({type})>'.format(
             obj_name=self._meta.object_name,
-            name=self.name,
-            version=self.version,
+            name=self.release.name,
+            version=self.release.version,
             type=self.packagetype
         )
 
