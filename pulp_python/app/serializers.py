@@ -1,7 +1,7 @@
 from gettext import gettext as _
 
 from django.db import transaction
-from packaging import specifiers
+from packaging import specifiers, version
 from rest_framework import serializers
 
 from pulpcore.plugin import models as core_models
@@ -41,6 +41,39 @@ class DistributionDigestSerializer(serializers.ModelSerializer):
         fields = ('type', 'digest')
 
 
+class PinnedVersionSerializer(serializers.ModelSerializer):
+    """
+    A serializer for Python project specifiers.
+    """
+
+    name = serializers.CharField(
+        help_text=_("A python project name.")
+    )
+    version = serializers.CharField(
+        help_text=_("A specific package version."),
+        required=False,
+        allow_blank=True
+    )
+    digests = DistributionDigestSerializer(
+        required=False,
+        many=True
+    )
+
+    def validate_version(self, value):
+        """
+        Check that the Version Specifier is valid.
+        """
+        try:
+            version.Version(value)
+        except version.InvalidVersion as err:
+            raise serializers.ValidationError(err)
+        return value
+
+    class Meta:
+        model = python_models.PinnedVersion
+        fields = ('name', 'version', 'digests')
+
+
 class ProjectSpecifierSerializer(serializers.ModelSerializer):
     """
     A serializer for Python project specifiers.
@@ -59,10 +92,6 @@ class ProjectSpecifierSerializer(serializers.ModelSerializer):
         required=False,
         allow_blank=True
     )
-    digests = DistributionDigestSerializer(
-        required=False,
-        many=True
-    )
 
     def validate_version_specifier(self, value):
         """
@@ -76,7 +105,7 @@ class ProjectSpecifierSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = python_models.ProjectSpecifier
-        fields = ('name', 'version_specifier', 'digests')
+        fields = ('name', 'version_specifier')
 
 
 class PythonPackageContentSerializer(core_serializers.ContentSerializer):
@@ -269,7 +298,7 @@ class PythonRemoteSerializer(core_serializers.RemoteSerializer):
         )
         model = python_models.PythonRemote
 
-    def gen_specifiers(self, remote, includes, excludes):
+    def gen_specifiers(self, remote, includes, excludes, pinned_versions):
         """
         Generate include and exclude project specifiers.
 
@@ -279,31 +308,35 @@ class PythonRemoteSerializer(core_serializers.RemoteSerializer):
             remote (PythonRemote): The remote to generate ProjectSpecifiers for
             includes (list): A list of validated ProjectSpecifier dicts
             excludes (list): A list of validated ProjectSpecifier dicts
+            pinned_versions (list): A list of validated ProjectSpecifier dicts
+
         """
         for project in includes:
-            digests = project.pop('digests', None)
-            specifier = python_models.ProjectSpecifier.objects.create(
+            python_models.ProjectSpecifier.objects.create(
                 remote=remote,
                 exclude=False,
                 **project
             )
-            if digests:
-                for digest in digests:
-                    python_models.DistributionDigest.objects.create(
-                        project_specifier=specifier,
-                        **digest
-                    )
+
         for project in excludes:
-            digests = project.pop('digests', None)
-            specifier = python_models.ProjectSpecifier.objects.create(
+            python_models.ProjectSpecifier.objects.create(
                 remote=remote,
                 exclude=True,
                 **project
             )
+
+        for project in pinned_versions:
+            digests = project.pop('digests', None)
+
+            pinned = python_models.PinnedVersion.objects.create(
+                remote=remote,
+                **project
+            )
+
             if digests:
                 for digest in digests:
                     python_models.DistributionDigest.objects.create(
-                        project_specifier=specifier,
+                        pinned_version=pinned,
                         **digest
                     )
 
@@ -324,6 +357,7 @@ class PythonRemoteSerializer(core_serializers.RemoteSerializer):
         """
         includes = validated_data.pop('includes', [])
         excludes = validated_data.pop('excludes', [])
+        pinned_versions = validated_data.pop('pinned_versions', [])
 
         python_remote = python_models.PythonRemote.objects.get(pk=instance.pk)
 
@@ -336,8 +370,10 @@ class PythonRemoteSerializer(core_serializers.RemoteSerializer):
         if not self.partial or excludes:
             python_models.ProjectSpecifier.objects.filter(remote=python_remote,
                                                           exclude=True).delete()
+        if not self.partial or pinned_versions:
+            python_models.PinnedVersion.objects.filter(remote=python_remote).delete()
 
-        self.gen_specifiers(python_remote, includes, excludes)
+        self.gen_specifiers(python_remote, includes, excludes, pinned_versions)
 
         return super().update(instance, validated_data)
 
@@ -357,9 +393,10 @@ class PythonRemoteSerializer(core_serializers.RemoteSerializer):
         """
         includes = validated_data.pop('includes', [])
         excludes = validated_data.pop('excludes', [])
+        pinned_versions = validated_data.pop('pinned_versions', [])
 
         python_remote = python_models.PythonRemote.objects.create(**validated_data)
-        self.gen_specifiers(python_remote, includes, excludes)
+        self.gen_specifiers(python_remote, includes, excludes, pinned_versions)
 
         return python_remote
 

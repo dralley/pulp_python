@@ -49,10 +49,46 @@ class DistributionDigest(Model):
 
     type = models.TextField()
     digest = models.TextField()
-    project_specifier = models.ForeignKey(
-        "ProjectSpecifier",
+    pinned_version = models.ForeignKey(
+        "PinnedVersion",
         related_name="digests",
         related_query_name="distributiondigest",
+        on_delete=models.CASCADE
+    )
+
+
+class PinnedVersion(Model):
+    """
+    A specifier of a python project.
+
+    Example:
+
+        digests: ["sha256:0000"] will only match the distributions that has the exact hash
+        name: "projectname" without specifiers will match every distribution in the project.
+        version_specifier: "==1.0.0" will match all distributions matching version
+        version_specifier: "~=1.0.0" will match all major version 1 distributions
+        version_specifier: "==1.0.0" digests: ["sha256:0000"] will only match the distributions
+            with the hash and with version 1.0.0
+        version_specifier: ">=0.9,<1.0" will match all versions matching 0.9.*
+
+    Fields:
+
+        name (models.TextField): The name of a python project
+        version_specifier (models.TextField):  Used to filter the versions of a project to sync
+        exclude (models.BooleanField): Whether the specified projects should excluded or included
+
+    Relations:
+
+        remote (models.ForeignKey): The remote this project specifier is associated with
+    """
+
+    name = models.TextField()
+    version = models.TextField(blank=True, default="")
+
+    remote = models.ForeignKey(
+        "PythonRemote",
+        related_name="pinned",
+        related_query_name="pinnedversions",
         on_delete=models.CASCADE
     )
 
@@ -80,7 +116,6 @@ class ProjectSpecifier(Model):
     Relations:
 
         remote (models.ForeignKey): The remote this project specifier is associated with
-        include (models.BooleanField): Used to blacklist/whitelist projects to sync
     """
 
     name = models.TextField()
@@ -186,13 +221,20 @@ class PythonRemote(Remote):
     @property
     def includes(self):
         """
-        Specify include list.
+        Queryset of specified includes.
         """
         return ProjectSpecifier.objects.filter(remote=self, exclude=False)
 
     @property
     def excludes(self):
         """
-        Specify exclude list.
+        Queryset of specified excludes.
         """
         return ProjectSpecifier.objects.filter(remote=self, exclude=True)
+
+    @property
+    def pinned_versions(self):
+        """
+        Queryset of pinned versions.
+        """
+        return PinnedVersion.objects.filter(remote=self)
